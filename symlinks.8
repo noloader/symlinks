@@ -78,6 +78,21 @@ are prefixed with
 .B changed
 in the output.
 .TP
+.I -a
+make absolute links from relative links.  This permits links to remain
+valid when the link itself is moved.  This is especially useful for
+moving directories of links; using
+.B -a
+first, moving the directory, and then using
+.B -c
+restores relative links even if they pointed outside (or "above") the
+moved tree.
+Links affected by
+.B -a
+are prefixed with
+.B changed
+in the output.
+.TP
 .I -d
 causes
 .B dangling
