@@ -38,7 +38,8 @@ static int verbose = 0,
            delete = 0,
            shorten = 0,
            testing = 0,
-           single_fs = 1;
+           single_fs = 1,
+           abs_links = 0;
 
 /*
  * tidypath removes excess slashes and "." references from a path string
@@ -46,7 +47,7 @@ static int verbose = 0,
 
 static int substr(char *s, char *old, char *new) {
     char *tmp = NULL;
-    unsigned long oldlen = strlen(old), newlen = 0;
+    size_t oldlen = strlen(old), newlen = 0;
     
     if (NULL == strstr(s, old)) {
         return 0;
@@ -213,7 +214,7 @@ ughh:
 
 static void fix_symlink(char *path, dev_t my_dev) {
     static char lpath[PATH_MAX], new[PATH_MAX], abspath[PATH_MAX];
-    char *p, *np, *lp, *tail, *msg;
+    char *p, *np=NULL, *lp=NULL, *tail=NULL, *msg=NULL;
     struct stat stbuf, lstbuf;
     int fix_abs = 0, fix_messy = 0, fix_long = 0;
     size_t c;
@@ -267,12 +268,14 @@ static void fix_symlink(char *path, dev_t my_dev) {
     if (single_fs && lstbuf.st_dev != my_dev) {
         msg = "other_fs:";
     } else if (lpath[0] == '/') {
-        msg = "absolute:";
-        fix_abs = 1;
+        if (!abs_links || verbose) {
+            msg = "absolute:";
+        }
+        if (!abs_links) {
+            fix_abs = 1;
+        }
     } else if (verbose) {
         msg = "relative:";
-    } else {
-        msg = NULL;
     }
     
     fix_messy = tidy_path(strcpy(new, lpath));
@@ -293,7 +296,8 @@ static void fix_symlink(char *path, dev_t my_dev) {
         printf("%s %s -> %s\n", msg, path, lpath);
     }
     
-    if (!(fix_links || testing) || !(fix_messy || fix_abs || fix_long)) {
+    if (!(fix_links || testing || abs_links) ||
+        !(fix_messy || fix_abs || fix_long || abs_links)) {
         return;
     }
     
@@ -330,7 +334,12 @@ static void fix_symlink(char *path, dev_t my_dev) {
         
         strcpy(np, tail);
         (void) tidy_path(new);
-        
+    } else if (abs_links) {
+        /* turn relative link into an absolute one */
+        if (!realpath(path, new)) {
+            perror(path);
+            return;
+        }
         if (shorten) {
             (void) shorten_path(new, path);
         }
@@ -395,6 +404,7 @@ static void usage_error(void) {
     fprintf(stderr, "Usage:\t%s [-cdorstv] dirlist\n\n", progname);
     fprintf(stderr, "Flags:"
             "\t-c  change absolute/messy links to relative\n"
+            "\t-a  make absolute links from relative\n"
             "\t-d  delete dangling links\n"
             "\t-o  warn about links across file systems\n"
             "\t-r  recurse into subdirs\n"
@@ -436,6 +446,7 @@ int main(int argc, char **argv) {
                 if (c == 'c') { fix_links = 1;
                 } else if (c == 'd') { delete    = 1;
                 } else if (c == 'o') { single_fs = 0;
+                } else if (c == 'a') { abs_links = 1;
                 } else if (c == 'r') { recurse   = 1;
                 } else if (c == 's') { shorten   = 1;
                 } else if (c == 't') { testing   = 1;
